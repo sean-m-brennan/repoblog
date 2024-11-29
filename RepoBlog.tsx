@@ -14,11 +14,12 @@
    limitations under the License.
 */
 
-import {useEffect, useRef, useState} from "react"
+import React, {useEffect, useRef, useState} from "react"
 import {marked} from "marked"
 import DOMPurify from "dompurify"
-import {OverlayPanel} from "primereact/overlaypanel"
-import RepoBlogEntry from "./RepoBlogEntry";  // FIXME can this be generic?
+import {OverlayPanel} from "primereact/overlaypanel"  // FIXME can this be generic?
+
+import RepoBlogEntry from "./RepoBlogEntry"
 
 marked.use({async: true})
 

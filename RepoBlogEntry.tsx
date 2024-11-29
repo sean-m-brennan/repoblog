@@ -15,7 +15,7 @@
 */
 
 import React from "react"
-import {Button} from "primereact/button"
+import {Button} from "primereact/button"  // FIXME can this be generic?
 
 type RepoBlogEntryProps = {
     key: number
