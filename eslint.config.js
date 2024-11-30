@@ -3,7 +3,7 @@ import globals from 'globals'
 import tseslint from 'typescript-eslint'
 import { glob } from 'glob'
 
-const files = glob.sync('./**/*.{ts,tsx,css}', {ignore: ["./**/*.d.ts"]})
+const files = glob.sync('./lib/**/*.{ts,tsx,css}', {ignore: ["./lib/**/*.d.ts"]})
 
 export default tseslint.config(
     { ignores: ['dist', 'node_modules', '.turbo'] },

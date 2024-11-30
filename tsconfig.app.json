@@ -10,7 +10,7 @@
     "moduleResolution": "bundler",
     "isolatedModules": true,
     "moduleDetection": "force",
-    "emitDeclarationOnly": true,
+    "noEmit": true,
     "declaration": true,
     "jsx": "react-jsx",
 
@@ -24,6 +24,6 @@
     "baseUrl": ".",
   },
   "include": [
-    "**/*.tsx"
+    "./lib/**/*.tsx"
   ]
 }

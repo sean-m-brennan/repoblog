@@ -21,8 +21,8 @@ if (process.env.TURBO_HASH === undefined && !fs.existsSync('.turbo')) {
   plugins.push(eslint())
 }
 
-const sources = glob.sync('./**/*.{ts,tsx,css}', {
-    ignore: ["./**/*.d.ts", "./**/*.config.ts", "./public/**/*"],
+const sources = glob.sync('./lib/**/*.{ts,tsx,css}', {
+    ignore: ["./lib/**/*.d.ts"],
 })
 
 // https://vitejs.dev/config/
@@ -35,6 +35,8 @@ export default defineConfig({
     minify: false,
     lib: {
       entry: sources,
+      name: "repoblog",
+      fileName: "index",
       formats: ["es"],
     },
     rollupOptions: {

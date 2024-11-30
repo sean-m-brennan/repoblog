@@ -3,7 +3,4 @@
 /.vite/
 *.tsbuildinfo
 /.turbo/
-/RepoBlog*.cjs
-/RepoBlog*.js
-/RepoBlog*.js.map
-/RepoBlog*.d.ts
+
