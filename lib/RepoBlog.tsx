@@ -21,15 +21,16 @@ import DOMPurify from "dompurify"
 import {RepoEntry, getDirListing, RepoBlogConfig} from "./RepoBlogConfig"
 import RepoBlogLink from "./RepoBlogLink"
 import RepoBlogContent, {ContentContainer} from "./RepoBlogContent"
-
+import empty from "./repoblog.module.css"
 
 marked.use({async: true})
 
 export type RepoBlogProps = {
     config: RepoBlogConfig
+    css?: CSSModuleClasses
 }
 
-export default function RepoBlog({config}: RepoBlogProps) {
+export default function RepoBlog({config, css=empty}: RepoBlogProps) {
     const [activeEntry, setActiveEntry] = useState<RepoEntry|null>(null)
     const [activeHtml, setActiveHtml] = useState("")
     const containerRef = useRef<ContentContainer>(null)
@@ -51,7 +52,7 @@ export default function RepoBlog({config}: RepoBlogProps) {
         // FIXME button layout
         // FIXME button configurable size
         listing.forEach((entry, idx) => {
-            links.push(<RepoBlogLink key={idx} entry={entry}
+            links.push(<RepoBlogLink key={idx} entry={entry} css={css}
                                      action={(t: EventTarget, e: RepoEntry) => {
                                          setTarget(t)
                                          setActiveEntry(e)
@@ -83,11 +84,13 @@ export default function RepoBlog({config}: RepoBlogProps) {
             })
             .catch((err) => console.error(err))
     }, [listing, activeEntry])
-
+    console.log(css.repoblog_links)
     return (
         <>
-            {buttons}
-            <RepoBlogContent containerRef={containerRef} html={activeHtml}/>
+            <div className={css.repoblog_links}>
+                {buttons}
+            </div>
+            <RepoBlogContent containerRef={containerRef} css={css} html={activeHtml}/>
         </>
     )
 }

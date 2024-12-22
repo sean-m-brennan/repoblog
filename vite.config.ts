@@ -34,6 +34,7 @@ export default defineConfig({
   build: {
     sourcemap: true,
     minify: false,
+    cssCodeSplit: true,
     lib: {
       entry: sources,
       name: "repoblog",

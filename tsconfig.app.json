@@ -21,11 +21,12 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
 
-    "composite": true,
     "baseUrl": ".",
   },
   "include": [
     "./lib/**/*.tsx",
-    "./lib/**/*.ts"
+    "./lib/**/*.ts",
+    "./lib/**/*.module.css.d.ts",
+    "./lib/**/*.module.css"
   ]
 }
