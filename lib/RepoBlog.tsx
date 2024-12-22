@@ -14,129 +14,80 @@
    limitations under the License.
 */
 
-import React, {useEffect, useRef, useState} from "react"
+import React, {ReactElement, useEffect, useRef, useState} from "react"
 import {marked} from "marked"
 import DOMPurify from "dompurify"
-import {OverlayPanel} from "primereact/overlaypanel"  // FIXME can this be generic?
 
-import RepoBlogEntry from "./RepoBlogEntry"
+import {RepoEntry, getDirListing, RepoBlogConfig} from "./RepoBlogConfig"
+import RepoBlogLink from "./RepoBlogLink"
+import RepoBlogContent, {ContentContainer} from "./RepoBlogContent"
+
 
 marked.use({async: true})
 
 export type RepoBlogProps = {
-    configFile: string
+    config: RepoBlogConfig
 }
 
-export type RepoBlogConfig = {
-    apiUrl: string
-    user: string
-    repo: string
-    basePath: string
-    branch: string
-    fileSortRegex: string
-}
-
-declare global {
-    var repoblog_config: RepoBlogConfig | null  // eslint-disable-line no-var
-}
-
-globalThis.repoblog_config = null
-
-const configureRepoBlog = (cfgUrl: string) => {
-    fetch(cfgUrl)
-        .then(response => response.json())
-        .then(json => {
-            globalThis.repoblog_config = json as RepoBlogConfig
-        })
-        .catch((err) => {console.log(err)})
-}
-
-const filenameMask = (fileName: string): string|null => {
-    const cfg = globalThis.repoblog_config
-    if (!cfg)
-        return null
-    const regex = new RegExp(cfg.fileSortRegex, "iu")
-    if (regex.test(fileName)) {
-        const result = regex.exec(fileName)
-        return !result ? null : result[0]
-    }
-    return null
-}
-
-type RepoEntry = {
-    name: string
-    path: string
-    type: "file" | "dir"
-}
-
-const getDirListing = (path: string): RepoEntry[] => {
-    const cfg = globalThis.repoblog_config
-    if (!cfg)
-        return []
-    const url = `${cfg.apiUrl}/${cfg.user}/${cfg.repo}/contents/${cfg.basePath}/${path}?ref=${cfg.branch}`
-    const files: RepoEntry[] = []
-    fetch(url)
-        .then(response => {
-            response.json()
-                .then((json) => {
-                    const data = json as RepoEntry[]
-                    for (const entry of data) {
-                        if (entry.type == "file" && entry.name.endsWith('.md'))
-                            files.push(entry)
-                    }
-                })
-                .catch((err) => {console.log(err)})
-        })
-        .catch((err) => {console.log(err)})
-    return files.sort((a, b) => {
-        const a_cmp = filenameMask(a.name)
-        const b_cmp = filenameMask(b.name)
-        return a_cmp && !b_cmp ? -1 :
-            !a_cmp && b_cmp ? 1 :
-                !a_cmp && !b_cmp ? 0 :
-                    a_cmp! > b_cmp! ? 1 : a_cmp! < b_cmp! ? -1 : 0
-    })
-}
-
-export default function RepoBlog(props: RepoBlogProps) {
-    const [activeEntry, setActiveEntry] = useState<string|null>(null)
-    const containerRef = useRef<OverlayPanel>(null)
+export default function RepoBlog({config}: RepoBlogProps) {
+    const [activeEntry, setActiveEntry] = useState<RepoEntry|null>(null)
+    const [activeHtml, setActiveHtml] = useState("")
+    const containerRef = useRef<ContentContainer>(null)
+    const [target, setTarget] = useState<EventTarget| null>(null)
     const [listing, setListing] = useState<RepoEntry[]>([])
+    const [buttons, setButtons] = useState<ReactElement[]>([])
 
     useEffect(() => {
-        configureRepoBlog(props.configFile)
-        setListing(getDirListing("blog"))
-    }, [props.configFile])
+        getDirListing(config)
+            .then(listing => setListing(listing))
+            .catch(err => console.error(err))
+    }, [config])
 
     useEffect(() => {
-        if (activeEntry == null) {
+        const links: ReactElement[] = []
+        console.log("list")  // FIXME
+        console.log(listing)
+        // FIXME listing is too late?
+        // FIXME button layout
+        // FIXME button configurable size
+        listing.forEach((entry, idx) => {
+            links.push(<RepoBlogLink key={idx} entry={entry}
+                                     action={(t: EventTarget, e: RepoEntry) => {
+                                         setTarget(t)
+                                         setActiveEntry(e)
+                                     }}
+            />)
+        })
+        setButtons(links)
+    }, [listing])
+
+    useEffect(() => {
+        if (activeEntry === null) {
             if (containerRef.current)
                 containerRef.current.hide()
             return
         }
-        fetch(`./${activeEntry}`)
+        fetch(`${activeEntry.path}`)
             .then(response => response.blob())
             .then(blob => blob.text())
             .then(markdown => {
-                if (!containerRef.current)
+                if (containerRef.current === null)
                     throw new Error("Invalid container reference")
                 return marked.parse(markdown)
             })
             .then(html => {
-                if (!containerRef.current)
+                if (containerRef.current === null)
                     throw new Error("Invalid container reference")
-                containerRef.current.getElement().innerHTML = DOMPurify.sanitize(html)
-                containerRef.current.show(null, null)
+                setActiveHtml(DOMPurify.sanitize(html))
+                containerRef.current.show(null, target)
             })
             .catch((err) => console.error(err))
-    }, [activeEntry])
+    }, [listing, activeEntry])
 
     return (
         <>
-            {listing.map((entry, idx) =>
-                (<RepoBlogEntry key={idx} file={entry.name} onClick={() => setActiveEntry(entry.name)}/>))}
-            <OverlayPanel ref={containerRef}
-                          showCloseIcon={true} style={{width:'100%',height:'100%'}}/>
+            {buttons}
+            <RepoBlogContent containerRef={containerRef} html={activeHtml}/>
         </>
     )
 }

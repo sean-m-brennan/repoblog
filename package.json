@@ -13,19 +13,26 @@
   "type": "module",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./index.js",
+    "./util": "./util.js"
+  },
   "files": [
     "./index*.js",
     "./index*.js.map",
     "./index*.d.ts",
     "./RepoBlog*.js",
     "./RepoBlog*.js.map",
-    "./RepoBlog*.d.ts"
+    "./RepoBlog*.d.ts",
+    "./util.js"
   ],
   "dependencies": {
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "dompurify": "^3.2.2",
+    "fetch-sync": "^1.0.0",
     "marked": "^15.0.3",
+    "path-browserify": "^1.0.1",
     "primereact": "^10.8.4",
     "react-dom": "^18.3.1"
   },
@@ -33,6 +40,7 @@
     "@eslint/js": "^9.11.1",
     "@types/eslint": "^9.6.1",
     "@types/node": "^22.7.9",
+    "@types/path-browserify": "^1.0.3",
     "@typescript-eslint/eslint-plugin": "^8.8.1",
     "@typescript-eslint/parser": "^8.8.1",
     "@vitejs/plugin-react-swc": "^3.7.2",

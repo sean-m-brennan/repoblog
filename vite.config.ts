@@ -5,7 +5,7 @@ import eslint from 'vite-plugin-eslint'
 import dts from 'vite-plugin-dts'
 import {resolve} from "path"
 import * as fs from "node:fs"
-import {glob} from "glob";
+import {glob} from "glob"
 
 const plugins: PluginOption[] = [
   dts({
@@ -30,6 +30,7 @@ export default defineConfig({
   plugins: plugins,
   root: resolve(__dirname),
   base: "/repoblog/",
+  assetsInclude: ["./util.js"],
   build: {
     sourcemap: true,
     minify: false,
