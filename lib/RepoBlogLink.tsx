@@ -14,27 +14,30 @@
    limitations under the License.
 */
 
-import {RepoEntry} from "./RepoBlogConfig"
+import {HeaderInfo, RepoEntry} from "./RepoBlogConfig"
 import defaultImage from "./article.png"
 
 export type LinkAction = (target: EventTarget, entry: RepoEntry) => void
 
 export type RepoBlogLinkProps = {
     entry: RepoEntry
+    header: HeaderInfo
     css: CSSModuleClasses
     action: LinkAction
 }
 
-export default function RepoBlogLink({entry, css, action}: RepoBlogLinkProps) {
-    const title = entry.header.title ? entry.header.title : entry.name
-    const image = entry.header.image ? entry.header.image : defaultImage
+export default function RepoBlogLink({entry, header, css, action}: RepoBlogLinkProps) {
+    const title = header.title ? header.title : entry.name
+    const image = header.image ? header.image : defaultImage
+
     return (<div className={css.repoblog_link}>
-        <button style={{width: "200px", height: "200px", backgroundColor: "transparent", border: "none"}} >
-            <img src={image} alt={title}
-                 style={{maxWidth: "100%", maxHeight: "100%", width: "auto", height: "auto"}}
+        <button className={css.repoblog_link_button} >
+            <img className={css.repoblog_link_image} src={image} alt={title}
                  onClick={(e) => action(e.currentTarget, entry)}
             />
-            {title}
+            <div className={css.repoblog_link_caption}>
+                {title}
+            </div>
         </button>
     </div>)
 }

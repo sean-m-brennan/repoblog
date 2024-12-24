@@ -16,21 +16,32 @@
 
 import React, {ReactElement, useEffect, useRef, useState} from "react"
 import {marked} from "marked"
+import {baseUrl} from "marked-base-url"
 import DOMPurify from "dompurify"
 
-import {RepoEntry, getDirListing, RepoBlogConfig} from "./RepoBlogConfig"
+import {RepoEntry, getDirListing, RepoBlogConfig, getDirListingSync, getBasePath} from "./RepoBlogConfig"
 import RepoBlogLink from "./RepoBlogLink"
 import RepoBlogContent, {ContentContainer} from "./RepoBlogContent"
 import empty from "./repoblog.module.css"
 
-marked.use({async: true})
 
 export type RepoBlogProps = {
     config: RepoBlogConfig
-    css?: CSSModuleClasses
+    css?: CSSModuleClasses  // default empty
+    serverBasename?: string  // default ""
+    syncListing?: boolean  // default true
 }
 
-export default function RepoBlog({config, css=empty}: RepoBlogProps) {
+/**
+ * RepoBlog
+ *
+ * @param config (required) JSON configuration, see RepoBlogConfig type
+ * @param css CSS import that governs Link and Content appearance, see repoblog.module.css.d.ts
+ * @param serverBasename basename, if any
+ * @param syncListing for HTML mode only, fetch directory listing synchronously, default: true
+ * @constructor
+ */
+export default function RepoBlog({config, css=empty, serverBasename="", syncListing=true}: RepoBlogProps) {
     const [activeEntry, setActiveEntry] = useState<RepoEntry|null>(null)
     const [activeHtml, setActiveHtml] = useState("")
     const containerRef = useRef<ContentContainer>(null)
@@ -39,20 +50,26 @@ export default function RepoBlog({config, css=empty}: RepoBlogProps) {
     const [buttons, setButtons] = useState<ReactElement[]>([])
 
     useEffect(() => {
-        getDirListing(config)
-            .then(listing => setListing(listing))
-            .catch(err => console.error(err))
+        let fullBase = getBasePath(config, serverBasename)
+        if (!fullBase.endsWith("/"))
+            fullBase += "/"
+        marked.use(
+            {async: true},
+            baseUrl(fullBase),
+        )
+
+        if (syncListing)
+            setListing(getDirListingSync(config, serverBasename))
+        else
+            getDirListing(config, serverBasename)
+                .then(list => setListing(list))
+                .catch(err => console.error(err))
     }, [config])
 
     useEffect(() => {
         const links: ReactElement[] = []
-        console.log("list")  // FIXME
-        console.log(listing)
-        // FIXME listing is too late?
-        // FIXME button layout
-        // FIXME button configurable size
         listing.forEach((entry, idx) => {
-            links.push(<RepoBlogLink key={idx} entry={entry} css={css}
+            links.push(<RepoBlogLink key={idx} entry={entry} header={entry.header} css={css}
                                      action={(t: EventTarget, e: RepoEntry) => {
                                          setTarget(t)
                                          setActiveEntry(e)
@@ -68,6 +85,7 @@ export default function RepoBlog({config, css=empty}: RepoBlogProps) {
                 containerRef.current.hide()
             return
         }
+
         fetch(`${activeEntry.path}`)
             .then(response => response.blob())
             .then(blob => blob.text())
@@ -83,8 +101,8 @@ export default function RepoBlog({config, css=empty}: RepoBlogProps) {
                 containerRef.current.show(null, target)
             })
             .catch((err) => console.error(err))
-    }, [listing, activeEntry])
-    console.log(css.repoblog_links)
+    }, [listing, buttons, activeEntry])
+
     return (
         <>
             <div className={css.repoblog_links}>
