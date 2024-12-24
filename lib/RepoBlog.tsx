@@ -69,7 +69,7 @@ export default function RepoBlog({config, css=empty, serverBasename="", syncList
     useEffect(() => {
         const links: ReactElement[] = []
         listing.forEach((entry, idx) => {
-            links.push(<RepoBlogLink key={idx} entry={entry} header={entry.header} css={css}
+            links.push(<RepoBlogLink key={idx} entry={entry} css={css}
                                      action={(t: EventTarget, e: RepoEntry) => {
                                          setTarget(t)
                                          setActiveEntry(e)
