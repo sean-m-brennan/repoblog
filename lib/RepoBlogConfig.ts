@@ -27,12 +27,14 @@ import {fetchJsonSync, fetchSync} from "fetch-sync"
  */
 export type RepoBlogConfig = {
     apiUrl: string
+    rawUrl: string
     user: string
     repo: string
     branch: string
     basePath: string
     fileSortRegex: string
     isRepo?: boolean
+    debug?: boolean | string
 }
 
 export type HeaderInfo = {
@@ -45,6 +47,7 @@ export type RepoEntry = {
     name: string
     path: string
     type: "file" | "dir"
+    download_url: string  // only on files
     // Above are fixed to GitHub API
     key?: string
     header: HeaderInfo
@@ -59,8 +62,14 @@ export function configureRepoBlog(cfgUrl: string, sync: boolean = true): RepoBlo
 
 /*********************************/
 
-export const getBasePath = (cfg: RepoBlogConfig, root: string = "", templated: boolean = false) => {
-    if (import.meta.env.DEV || cfg.isRepo === false) {
+/**
+ * Construct the base path for content
+ *
+ * @param cfg
+ * @param root
+ */
+export const getBasePath = (cfg: RepoBlogConfig, root: string = "") => {
+    if (cfg.isRepo === false) {
         let base = cfg.basePath
         if (base.includes("public")) {
             const idx = base.indexOf("public") + 7
@@ -69,30 +78,45 @@ export const getBasePath = (cfg: RepoBlogConfig, root: string = "", templated: b
         let url = `/${base}`
         if (root)
             url = `/${root}/${base}`
-        url = url.replace(new RegExp("//", "g"), "/")
-        if (templated)
-            return `${url}${RBC.sub}`
-        return url
+        return url.replace(new RegExp("//", "g"), "/")
     }
-    const url = `${cfg.apiUrl}/${cfg.user}/${cfg.repo}/contents/${cfg.basePath}${RBC.sub}?ref=${cfg.branch}`
-    if (templated)
-        return url
-    return url.replace(RBC.sub, "")
+    return `${cfg.rawUrl}/${cfg.user}/${cfg.repo}/refs/heads/${cfg.branch}/${cfg.basePath}`
 }
 
-class RBC {
+class RBCfg {
     static sub: string = "%resource%"
 
     private readonly config: RepoBlogConfig
     private readonly sync: boolean
     private readonly htmlMode: boolean
     private readonly urlTemplate: string
+    private readonly contentPrefix: string
+    private readonly verbose: boolean
 
-    constructor(config: RepoBlogConfig, root: string, sync: boolean) {
+    constructor(config: RepoBlogConfig, root: string) {
         this.config = config
-        this.sync = sync
-        this.htmlMode = import.meta.env.DEV || this.config.isRepo === false;
-        this.urlTemplate = getBasePath(config, root, true)
+        this.sync = true
+        this.htmlMode = this.config.isRepo === false;
+        if (config.isRepo === false)
+            this.urlTemplate = `${getBasePath(config, root)}${RBCfg.sub}`
+        else
+            this.urlTemplate = `${config.apiUrl}/${config.user}/${config.repo}/contents/${config.basePath}${RBCfg.sub}?ref=${config.branch}`
+        this.contentPrefix = getBasePath(config, root)
+        this.verbose = this.config.debug === 'verbose'
+        this.debug('Debugging for RepoBlog is on. Configure with "debug: false" to remove these messages.')
+        this.debug(`HTML mode: ${this.htmlMode}`)
+        this.debug(`Metadata template ${this.urlTemplate}`)
+        this.debug(`Content template ${this.contentPrefix}`)
+    }
+
+    debug(msg: string): void {
+        if (import.meta.env.DEV || this.config.debug)
+            console.debug("RepoBlog: " + msg)
+    }
+    // eslint-disable-next-line
+    debugObj(obj: any): void {
+        if (import.meta.env.DEV || this.config.debug)
+            console.debug(obj)
     }
 
     defaultTitle(filename: string) {
@@ -101,6 +125,7 @@ class RBC {
 
     parseMarkdown(entry: RepoEntry, md: string) {
         const header = {} as HeaderInfo
+        const reEntry = {...entry}
         const idx = md.indexOf("# ")
         if (idx < 0)
             header.title = this.defaultTitle(entry.name)
@@ -113,51 +138,69 @@ class RBC {
             let filename = result[1].replace(new RegExp("./"), "/")
             if (!filename.startsWith("/"))
                 filename = `/${filename}`
-            header.image = this.urlTemplate.replace(RBC.sub, filename)
+            header.image = `${this.contentPrefix}${filename}`
         }
         // FIXME extract first x characters after title into header.preview
-        return header
+        this.debug("Link header:")
+        this.debugObj(header)
+        reEntry.header = header
+        return reEntry
     }
 
-    parseHeaderSync(entry: RepoEntry): HeaderInfo {
-        const md = fetchSync(entry.path)
+    parseHeaderSync(entry: RepoEntry): RepoEntry {
+        if (this.verbose)
+            this.debug(`Construct header from ${entry.download_url}`)
+        const md = fetchSync(entry.download_url)
         return this.parseMarkdown(entry, md)
     }
 
-    parseHeaderAsync(entry: RepoEntry): Promise<HeaderInfo> {
-        return (fetch(entry.path)
+    parseHeaderAsync(entry: RepoEntry): Promise<RepoEntry> {
+        if (this.verbose)
+            this.debug(`Construct header from ${entry.download_url}`)
+        return (fetch(entry.download_url)
             .then(res => res.text())
             .then(md => this.parseMarkdown(entry, md))
             .catch(err => {
                 console.error(err)
-                const header = {} as HeaderInfo
-                header.title = this.defaultTitle(entry.name)
-                return header
+                const reEntry = {...entry}
+                reEntry.header.title = this.defaultTitle(entry.name)
+                return reEntry
             }))
     }
 
     listingJson(entries: RepoEntry[]) {
         const files: RepoEntry[] = []
         for (const entry of entries) {
+            let reEntry = {...entry}
             if (entry.type === "file" && entry.name.endsWith('.md')) {
-                entry.key = path.basename(entry.name)
-                this.parseHeaderAsync(entry)
-                    .then(header => entry.header = header)
-                    .catch(err => {
-                        console.error(err)
-                        entry.header.title = this.defaultTitle(entry.name)
-                    })
-                files.push(entry)
+                reEntry.key = path.basename(entry.name)
+                if (this.sync) {
+                    reEntry = this.parseHeaderSync(entry)
+                } else {
+                    this.parseHeaderAsync(entry)
+                        .then(entry => reEntry = entry)
+                        .catch(err => {
+                            console.error(err)
+                            reEntry.header.title = this.defaultTitle(entry.name)
+                        })
+                }
+                files.push(reEntry)
             }
         }
+        this.debug("File listing:")
+        this.debugObj(files)
         return files
     }
 
     getDirListingJsonSync(url: string): RepoEntry[] {
+        if (this.verbose)
+            this.debug(`JSON sync to ${url}`)
         return this.listingJson(fetchJsonSync(url) as RepoEntry[])
     }
 
     getDirListingJsonAsync(url: string): Promise<RepoEntry[]> {
+        if (this.verbose)
+            this.debug(`JSON async to ${url}`)
         return (fetch(url)
                 .then(res => res.json())
                 .then(json => {
@@ -166,7 +209,7 @@ class RBC {
                 })
                 .catch(err => {
                     console.error(err)
-                    return []
+                    return [] as RepoEntry[]
                 })
         )
     }
@@ -177,19 +220,21 @@ class RBC {
         for (const link of doc.links) {
             if (link.href.endsWith('.md')) {
                 const fileName = path.basename(link.href)
-                const entry = {
+                let entry = {
                     type: "file",
                     name: fileName,
                     path: `${url}/${fileName}`,
                     key: fileName,
                     header: {} as HeaderInfo,
+                    download_url: `${this.contentPrefix}/${fileName}`
                 } as RepoEntry
+
                 if (this.sync) {
-                    entry.header = this.parseHeaderSync(entry)
+                    entry = this.parseHeaderSync(entry)
                 } else {
                     this.parseHeaderAsync(entry)
                         .then(header => {
-                            entry.header = header
+                            entry = header
                         })
                         .catch(err => {
                             console.error(err)
@@ -199,12 +244,16 @@ class RBC {
                 files.push(entry)
             }
         }
+        this.debug("File listing:")
+        this.debugObj(files)
         return files
     }
 
     getDirListingHtmlSync(url: string): RepoEntry[] {
         if (url.endsWith("/"))
             url = url.slice(0, url.length - 1)
+        if (this.verbose)
+            this.debug(`HTML sync to ${url}`)
         const body = fetchSync(`${url}/index.html`)
         return this.listingHtml(url, body)
     }
@@ -212,12 +261,14 @@ class RBC {
     getDirListingHtmlAsync (url: string): Promise<RepoEntry[]> {
         if (url.endsWith("/"))
             url = url.slice(0, url.length - 1)
+        if (this.verbose)
+            this.debug(`HTML async to ${url}`)
         return (fetch(`${url}/index.html`)
             .then(resp => resp.text())
             .then(body => this.listingHtml(url, body))
             .catch(err => {
                 console.error(err)
-                return []
+                return [] as RepoEntry[]
             }))
     }
 
@@ -243,7 +294,7 @@ class RBC {
     }
 
     dirList(): Promise<RepoEntry[]> | RepoEntry[] {
-        const url = this.urlTemplate.replace(RBC.sub, "")
+        const url = this.urlTemplate.replace(RBCfg.sub, "")
         if (this.htmlMode) {
             if (this.sync)
                 return this.getDirListingHtmlSync(url)
@@ -251,7 +302,7 @@ class RBC {
                 .then(files => this.sorting(files))
                 .catch(err => {
                     console.error(err)
-                    return []
+                    return [] as RepoEntry[]
                 }))
         }
         if (this.sync)
@@ -260,17 +311,13 @@ class RBC {
             .then(files => this.sorting(files))
             .catch(err => {
                 console.error(err)
-                return []
+                return [] as RepoEntry[]
             }))
     }
 }
 
 /*********************************/
 
-export const getDirListing = (cfg: RepoBlogConfig, root: string=""): Promise<RepoEntry[]> => {
-    return new RBC(cfg, root, false).dirList() as Promise<RepoEntry[]>
-}
-
-export const getDirListingSync = (cfg: RepoBlogConfig, root: string=""): RepoEntry[] => {
-    return new RBC(cfg, root, true).dirList() as RepoEntry[]
+export const getDirListing = (cfg: RepoBlogConfig, root: string=""): RepoEntry[] => {
+    return new RBCfg(cfg, root).dirList() as RepoEntry[]
 }

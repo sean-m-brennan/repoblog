@@ -19,7 +19,7 @@ import {marked} from "marked"
 import {baseUrl} from "marked-base-url"
 import DOMPurify from "dompurify"
 
-import {RepoEntry, getDirListing, RepoBlogConfig, getDirListingSync, getBasePath} from "./RepoBlogConfig"
+import {RepoEntry, getDirListing, RepoBlogConfig, getBasePath} from "./RepoBlogConfig"
 import RepoBlogLink from "./RepoBlogLink"
 import RepoBlogContent, {ContentContainer} from "./RepoBlogContent"
 import empty from "./repoblog.module.css"
@@ -38,10 +38,9 @@ export type RepoBlogProps = {
  * @param config (required) JSON configuration, see RepoBlogConfig type
  * @param css CSS import that governs Link and Content appearance, see repoblog.module.css.d.ts
  * @param serverBasename basename, if any
- * @param syncListing for HTML mode only, fetch directory listing synchronously, default: true
  * @constructor
  */
-export default function RepoBlog({config, css=empty, serverBasename="", syncListing=true}: RepoBlogProps) {
+export default function RepoBlog({config, css=empty, serverBasename=""}: RepoBlogProps) {
     const [activeEntry, setActiveEntry] = useState<RepoEntry|null>(null)
     const [activeHtml, setActiveHtml] = useState("")
     const containerRef = useRef<ContentContainer>(null)
@@ -57,13 +56,7 @@ export default function RepoBlog({config, css=empty, serverBasename="", syncList
             {async: true},
             baseUrl(fullBase),
         )
-
-        if (syncListing)
-            setListing(getDirListingSync(config, serverBasename))
-        else
-            getDirListing(config, serverBasename)
-                .then(list => setListing(list))
-                .catch(err => console.error(err))
+        setListing(getDirListing(config, serverBasename))
     }, [config])
 
     useEffect(() => {
@@ -86,7 +79,7 @@ export default function RepoBlog({config, css=empty, serverBasename="", syncList
             return
         }
 
-        fetch(`${activeEntry.path}`)
+        fetch(`${activeEntry.download_url}`)
             .then(response => response.blob())
             .then(blob => blob.text())
             .then(markdown => {
@@ -101,7 +94,7 @@ export default function RepoBlog({config, css=empty, serverBasename="", syncList
                 containerRef.current.show(null, target)
             })
             .catch((err) => console.error(err))
-    }, [listing, buttons, activeEntry])
+    }, [activeEntry])
 
     return (
         <>
